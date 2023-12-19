@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "dev.metty",
+      "sha256_cert_fingerprints": [
+        "BE:39:ED:92:68:7D:96:2F:DD:CA:8E:50:A0:DE:73:28:2E:96:A5:0E:FE:1B:C5:0E:EE:62:C5:52:86:9F:A5:AC"
+      ]
+    }
+  }
+]
