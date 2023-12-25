@@ -5,8 +5,10 @@ import { generateRegistrationOptions, verifyRegistrationResponse } from '@simple
 import { headers } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { uid } from 'uid-promise';
+import { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/typescript-types';
 
 const client = new CognitoIdentityProviderClient({ region: "eu-west-1" });
+const rpEndpoint = process.env['RP_ENDPOINT_URL']!
 
 interface WrappedResponse<T> {
   error?: any
@@ -29,59 +31,27 @@ export async function register(username: string): Promise<any> {
   await kv.set(username, options.challenge, { ex: 100 });
   return options;
 };
-export async function registerUsernameless(accessToken: string): Promise<any> {
-  const _h = headers();
-  const user = await getUser(accessToken);
-  const username = user.UserAttributes?.find((e) => e.Name == 'email')?.Value!
-
-  const options = await generateRegistrationOptions({
-    rpName: 'metty-auth',
-    rpID: _h.get('Host')!,
-    userID: user.Username!,
-    userName: username,
-    attestationType: 'none',
-    authenticatorSelection: {
-      residentKey: 'preferred',
-      userVerification: 'preferred',
-    },
-  });
-  await kv.set(username, options.challenge, { ex: 100 });
-  return options;
-};
-export async function addAuthenticator(accessToken: string, challengeAnswer: string): Promise<WrappedResponse<void>> {
+export async function registerUsernameless(idToken: string): Promise<WrappedResponse<any>> {
   const _h = headers();
   try {
-    const user = await getUser(accessToken);
-    const username = user.UserAttributes?.find((e) => e.Name == 'email')?.Value!
-
-    const host = _h.get('Host')!;
-
-    let verification = await verifyRegistrationResponse({
-      response: JSON.parse(challengeAnswer),
-      expectedChallenge: (await kv.get(username))!,
-      expectedOrigin: `https://${host}`,
-      expectedRPID: host,
-      requireUserVerification: false
-    });
-
-    if (verification.verified) {
-      const registrationInfo = verification.registrationInfo;
-      const existingAuthenticators: Array<any> = JSON.parse(user.UserAttributes?.find((e) => e.Name == 'custom:publicKeyCred')?.Value || '[]');
-      existingAuthenticators.push({
-        credentialID: Buffer.from(registrationInfo?.credentialID || []).toJSON(),
-        credentialPublicKey: Buffer.from(registrationInfo?.credentialPublicKey || []).toJSON(),
-        counter: registrationInfo?.counter || 0,
-      });
-      const updateUserAttributesCommand = new UpdateUserAttributesCommand({
-        AccessToken: accessToken,
-        UserAttributes: [{
-          Name: 'custom:publicKeyCred',
-          Value: JSON.stringify(existingAuthenticators),
-        }],
-      });
-      await client.send(updateUserAttributesCommand);
-    } else {
-      return { error: ('verification failed') }
+    const resp = await fetch(`${rpEndpoint}/authenticator/`, { method: 'POST', headers: { 'Authorization': `Bearer ${idToken}` } });
+    const body = await resp.json();
+    console.log(resp.status, " ", body);
+    return { response: JSON.stringify(body) };
+  } catch (error) {
+    return { error }
+  }
+};
+export async function addAuthenticator(idToken: string, challengeAnswer: string): Promise<WrappedResponse<void>> {
+  const _h = headers();
+  try {
+    const resp = await fetch(`${rpEndpoint}/authenticator/confirm`, { method: 'PUT', headers: { 'Authorization': `Bearer ${idToken}` }, body: challengeAnswer });
+    const body = await resp.json();
+    console.log(resp.status, " ", body);
+    if (resp.status != 200) {
+      return {
+        error: `received status code ${resp.status}`
+      }
     }
   } catch (err: any) {
     return { error: err.name }
@@ -113,46 +83,25 @@ export async function removeAuthenticator(accessToken: string, id: string): Prom
   return {};
 
 }
-export async function signUp(username: string, challengeAnswer: string): Promise<WrappedResponse<any>> {
+export async function signUp(username: string): Promise<WrappedResponse<any>> {
   const _h = headers();
   const host = _h.get('Host')!;
 
-  let verification = await verifyRegistrationResponse({
-    response: JSON.parse(challengeAnswer),
-    expectedChallenge: (await kv.get(username))!,
-    expectedOrigin: `https://${host}`,
-    expectedRPID: host,
-    requireUserVerification: false
+  const signUpCommand = new SignUpCommand({
+    ClientId: process.env['COGNITO_CLIENT_ID']!,
+    Username: username,
+    Password: 'Passw0rd1234!',
+    UserAttributes: [{
+      Name: 'email',
+      Value: username,
+    }]
   });
-
-  if (verification.verified) {
-    const registrationInfo = verification.registrationInfo;
-    const signUpCommand = new SignUpCommand({
-      ClientId: process.env['COGNITO_CLIENT_ID']!,
-      Username: username,
-      Password: 'Passw0rd1234!',
-      UserAttributes: [{
-        Name: 'custom:publicKeyCred',
-        Value: JSON.stringify([
-          {
-            credentialID: Buffer.from(registrationInfo?.credentialID || []).toJSON(),
-            credentialPublicKey: Buffer.from(registrationInfo?.credentialPublicKey || []).toJSON(),
-            counter: registrationInfo?.counter || 0,
-          }
-        ]),
-      }, {
-        Name: 'email',
-        Value: username,
-      }]
-    });
-    await kv.del(username);
-    try {
-      return { response: await client.send(signUpCommand) };
-    } catch (err: any) {
-      return { error: err.name }
-    }
+  await kv.del(username);
+  try {
+    return { response: await client.send(signUpCommand) };
+  } catch (err: any) {
+    return { error: err.name }
   }
-  return { error: 'challenge verification failed' }
 }
 
 export async function confirmSignup(username: string, code: string): Promise<WrappedResponse<void>> {
@@ -181,7 +130,7 @@ export async function resendConfirmationCode(username: string): Promise<void> {
   await client.send(resendConfirmationCodeCommand);
 }
 
-export async function authWithRefreshToken(username: string, refreshToken: string): Promise<WrappedResponse<string>> {
+export async function authWithRefreshToken(username: string, refreshToken: string): Promise<WrappedResponse<AuthenticationResultType>> {
   const _h = headers();
   const initiateAuthCommand = new InitiateAuthCommand({
     ClientId: process.env['COGNITO_CLIENT_ID']!,
@@ -193,7 +142,7 @@ export async function authWithRefreshToken(username: string, refreshToken: strin
   });
   try {
     const resp = await client.send(initiateAuthCommand);
-    return { response: resp.AuthenticationResult?.AccessToken! };
+    return { response: resp.AuthenticationResult! };
   }
   catch (err: any) {
     return { error: err.name }
@@ -221,6 +170,22 @@ export async function auth(username: string): Promise<any> {
     }
   }
   catch (err: any) {
+    return { error: err.name }
+  }
+}
+export async function authUsernameless(): Promise<WrappedResponse<PublicKeyCredentialRequestOptionsJSON>> {
+  const _h = headers();
+  try {
+    const resp = await fetch(`${rpEndpoint}/sign-in-challenge`, { method: 'POST' });
+    const body = await resp.json();
+    console.log(resp.status, " ", body);
+    if (resp.status != 200) {
+      return {
+        error: `received status code ${resp.status}`
+      }
+    }
+    return { response: body };
+  } catch (err: any) {
     return { error: err.name }
   }
 }
@@ -294,8 +259,18 @@ export async function answerMagicLinkChallenge(username: string, session: string
 }
 
 
-export async function answerFIDOChallenge(username: string, session: string, attResp: string): Promise<AuthenticationResultType> {
+export async function answerFIDOChallenge(username: string, attResp: string, session?: string): Promise<AuthenticationResultType> {
   const _h = headers();
+  if (session == undefined) {
+    const initiateAuthResponse = await client.send(new InitiateAuthCommand({
+      ClientId: process.env['COGNITO_CLIENT_ID']!,
+      AuthFlow: 'CUSTOM_AUTH',
+      AuthParameters: {
+        USERNAME: username,
+      }
+    }));
+    session = initiateAuthResponse.Session
+  }
   const respondToAuthChallengeCommand = new RespondToAuthChallengeCommand({
     ChallengeName: 'CUSTOM_CHALLENGE',
     ClientId: process.env['COGNITO_CLIENT_ID']!,

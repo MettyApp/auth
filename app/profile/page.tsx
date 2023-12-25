@@ -42,14 +42,14 @@ export default function Profile() {
   }
   const enrollDevice = async () => {
     setWorking(true);
-    const accessToken = localStorage.getItem('accessToken');
-    if (accessToken == null) {
-      throw new Error('access token missing');
+    const idToken = localStorage.getItem('idToken');
+    if (idToken == null) {
+      throw new Error('idToken missing');
     }
     try {
-      const opts = await registerUsernameless(accessToken)
+      const opts = JSON.parse((await registerUsernameless(idToken)).response)
       const attResp = JSON.stringify(await startRegistration(opts));
-      await addAuthenticator(accessToken, attResp);
+      await addAuthenticator(idToken, attResp);
     } finally { setWorking(false); }
   };
 
