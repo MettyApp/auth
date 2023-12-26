@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { useSearchParams } from 'next/navigation'
 
-import { answerFIDOChallenge, confirmSignup, authWithMagicLink, answerMagicLinkChallenge, authWithRefreshToken, getUser, decodeMagicLinkHash, authUsernameless } from '@/app/actions';
+import { answerFIDOChallenge, confirmSignup, authWithMagicLink, answerMagicLinkChallenge, authWithRefreshToken, decodeMagicLinkHash, authUsernameless } from '@/app/actions';
 import { jwtDecode } from 'jwt-decode';
 
 import { useRouter } from 'next/navigation'
@@ -13,7 +13,6 @@ import Link from 'next/link';
 import { EnvelopeIcon, FingerPrintIcon } from '@heroicons/react/24/outline';
 
 export default function Home() {
-  const [username, setUsername] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [working, setWorking] = useState(false);
   const searchParams = useSearchParams();
@@ -98,15 +97,6 @@ export default function Home() {
     window.location.assign(url.toString());
   };
 
-  useEffect(() => {
-    if (accessToken != "") {
-      (async () => {
-        const user = await getUser(accessToken);
-        const email = user.UserAttributes?.find((e) => e.Name == 'email')?.Value!;
-        setUsername(email);
-      })();
-    }
-  }, [accessToken]);
 
   useEffect(() => {
     (async () => {
@@ -160,31 +150,25 @@ export default function Home() {
   }, []);
 
   const formDisabled = (accessToken.length > 0 || working);
-  const actionsDisabled = (accessToken.length > 0 || working || username.length === 0);
   return (
     <main>
       <div className=' mb-8'>
         <h1 className='text-2xl text-black font-extrabold'>Access your account</h1>
         <p className='text-sm'>New user ? <Link className='underline' href={'/signup'}>Create an account</Link></p>
       </div>
-      <form onSubmit={(e) => {
-        e.preventDefault();
-        doAuth();
-      }}>
-        <div className='my-4 flex flex-col'>
-          <button type='button' disabled={formDisabled} onClick={(_) => doAuth()} className="flex-1 flex bg-black hover:enabled:bg-black-700 text-white font-bold py-2 px-4 rounded focus:enabled:outline-none disabled:opacity-30 hover:enabled:bg-opacity-80">
-            <FingerPrintIcon height={24} width={24} />
-            <span className='flex-1'>Login with biometrics</span>
-          </button>
-          <p className="my-4 text-center before:content-[''] before:border-b-2 before:mb-2 before:mr-4 before:flex-1 flex flex-row flex-1 after:border-b-2 after:flex-1 after:mb-2 after:ml-4">or</p>
+      <div className='my-4 flex flex-col'>
+        <button type='button' disabled={formDisabled} onClick={(_) => doAuth()} className="flex-1 flex bg-black hover:enabled:bg-black-700 text-white font-bold py-2 px-4 rounded focus:enabled:outline-none disabled:opacity-30 hover:enabled:bg-opacity-80">
+          <FingerPrintIcon height={24} width={24} />
+          <span className='flex-1'>Login with biometrics</span>
+        </button>
+        <p className="my-4 text-center before:content-[''] before:border-b-2 before:mb-2 before:mr-4 before:flex-1 flex flex-row flex-1 after:border-b-2 after:flex-1 after:mb-2 after:ml-4">or</p>
 
-          <button type='button' onClick={(_) => router.push('/emailSignin')} className="flex-1 flex py-2 px-4 font-bold text-sm text-black rounded hover:enabled:bg-opacity-10 border-2 border-gray-600
+        <button type='button' onClick={(_) => router.push('/emailSignin')} className="flex-1 flex py-2 px-4 font-bold text-sm text-black rounded hover:enabled:bg-opacity-10 border-2 border-gray-600
         hover:enabled:bg-gray-500 disabled:opacity-30">
-            <EnvelopeIcon height={24} width={24} />
-            <span className='flex-1'>Login with email</span>
-          </button>
-        </div>
-      </form>
+          <EnvelopeIcon height={24} width={24} />
+          <span className='flex-1'>Login with email</span>
+        </button>
+      </div>
     </main>
   )
 }

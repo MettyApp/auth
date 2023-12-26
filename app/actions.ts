@@ -1,7 +1,7 @@
 'use server'
 
-import { AuthenticationResultType, CognitoIdentityProviderClient, ConfirmSignUpCommand, GetUserCommand, GetUserCommandOutput, InitiateAuthCommand, ResendConfirmationCodeCommand, RespondToAuthChallengeCommand, SignUpCommand, UpdateUserAttributesCommand } from '@aws-sdk/client-cognito-identity-provider';
-import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server';
+import { AuthenticationResultType, CognitoIdentityProviderClient, ConfirmSignUpCommand, InitiateAuthCommand, ResendConfirmationCodeCommand, RespondToAuthChallengeCommand, SignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { generateRegistrationOptions } from '@simplewebauthn/server';
 import { headers } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { uid } from 'uid-promise';
@@ -31,7 +31,7 @@ export async function register(username: string): Promise<any> {
   await kv.set(username, options.challenge, { ex: 100 });
   return options;
 };
-export async function registerUsernameless(idToken: string): Promise<WrappedResponse<any>> {
+export async function enrollFIDO2Authenticator(idToken: string): Promise<WrappedResponse<any>> {
   const _h = headers();
   try {
     const resp = await fetch(`${rpEndpoint}/authenticator/`, { method: 'POST', headers: { 'Authorization': `Bearer ${idToken}` } });
@@ -65,17 +65,7 @@ export async function removeAuthenticator(accessToken: string, id: string): Prom
     const user = await getUser(accessToken);
     const host = _h.get('Host')!;
 
-
-    const existingAuthenticators: Array<any> = JSON.parse(user.UserAttributes?.find((e) => e.Name == 'custom:publicKeyCred')?.Value || '[]').filter((e: any) => Buffer.from(e.credentialID).toString('base64') != id);
-
-    const updateUserAttributesCommand = new UpdateUserAttributesCommand({
-      AccessToken: accessToken,
-      UserAttributes: [{
-        Name: 'custom:publicKeyCred',
-        Value: JSON.stringify(existingAuthenticators),
-      }],
-    });
-    await client.send(updateUserAttributesCommand);
+    throw Error("not implem");
 
   } catch (err: any) {
     return { error: err.name }
@@ -287,8 +277,31 @@ export async function answerFIDOChallenge(username: string, attResp: string, ses
   return resp.AuthenticationResult!
 }
 
-export async function getUser(accessToken: string): Promise<GetUserCommandOutput> {
-  const getUserCommand = new GetUserCommand({ AccessToken: accessToken });
-  const resp = await client.send(getUserCommand);
-  return resp;
+export interface Authenticator {
+  credentialId: string;
+  friendlyName: string;
+  createdAt: Date;
+  flagUserVerified: 0 | 1;
+  flagBackupEligibility: 0 | 1;
+  flagBackupState: 0 | 1;
+  aaguid: string;
+  transports?: AuthenticatorTransport[];
+  lastSignIn?: Date;
+  signCount: number;
+  rpId: string;
+}
+
+export interface UserProfile {
+  email: string;
+  authenticators: Array<Authenticator>
+}
+
+export async function getUser(idToken: string): Promise<UserProfile> {
+  const _h = headers();
+  const profile = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+  const resp = await fetch(`${rpEndpoint}/authenticator/`, { method: 'GET', headers: { 'Authorization': `Bearer ${idToken}` } });
+  return {
+    email: profile.email,
+    ...(await resp.json()),
+  };
 }

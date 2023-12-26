@@ -1,18 +1,12 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { addAuthenticator, getUser, register, registerUsernameless, removeAuthenticator } from '../actions';
-import { GetUserCommandOutput } from '@aws-sdk/client-cognito-identity-provider';
+import { addAuthenticator, getUser, Authenticator, enrollFIDO2Authenticator, removeAuthenticator, UserProfile } from '../actions';
 import { startRegistration } from '@simplewebauthn/browser';
 import { useRouter } from 'next/navigation';
 import { XMarkIcon } from '@heroicons/react/24/solid'
 
-interface Authenticator {
-  credentialID: Buffer
-  credentialPublicKey: Buffer
-}
-
-const authenticatorId = (authenticator: Authenticator) => authenticator.credentialID.toString('base64');
+const authenticatorId = (authenticator: Authenticator) => authenticator.credentialId;
 
 function Authenticator({ authenticator }: { authenticator: Authenticator }) {
   const deviceId = authenticatorId(authenticator);
@@ -25,13 +19,13 @@ function Authenticator({ authenticator }: { authenticator: Authenticator }) {
   }
 
   return <li className='group text-black flex flex-row justify-between hover:bg-gray-100 rounded-full pr-4 py-2'>
-    {authenticator.credentialID.toString('base64')}
+    {authenticator.credentialId}
     <button className='h-6 w-6 group-hover:block hidden'><XMarkIcon onClick={(_) => doRemoveAuthenticator(deviceId)} /></button>
   </li>
 }
 
 export default function Profile() {
-  const [userProfile, setUserProfile] = useState<GetUserCommandOutput | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [working, setWorking] = useState(false);
   const router = useRouter();
 
@@ -47,18 +41,18 @@ export default function Profile() {
       throw new Error('idToken missing');
     }
     try {
-      const opts = JSON.parse((await registerUsernameless(idToken)).response)
+      const opts = JSON.parse((await enrollFIDO2Authenticator(idToken)).response)
       const attResp = JSON.stringify(await startRegistration(opts));
       await addAuthenticator(idToken, attResp);
     } finally { setWorking(false); }
   };
 
   useEffect(() => {
-    const accessToken = localStorage.getItem('accessToken');
-    if (accessToken != "") {
+    const idToken = localStorage.getItem('idToken');
+    if (idToken != "") {
       (async () => {
         try {
-          const user = await getUser(accessToken!);
+          const user = await getUser(idToken!);
           setUserProfile(user);
         } catch {
           router.replace('/');
@@ -70,14 +64,14 @@ export default function Profile() {
     }
   }, []);
 
-  const authenticators: Array<Authenticator> = JSON.parse(userProfile?.UserAttributes?.find((e) => e.Name == 'custom:publicKeyCred')?.Value || '[]').map((e: any) => ({ credentialID: Buffer.from(e.credentialID), credentialPublicKey: Buffer.from(e.credentialPublicKey) }));
-  const email = userProfile?.UserAttributes?.find((e) => e.Name == 'email')?.Value;
+  const authenticators = userProfile?.authenticators;
+  const email = userProfile?.email;
   return (<main>
     <h1 className='text-2xl text-black font-extrabold mb-8'>Hello, {email}</h1>
     <div className='my-4'>
       <h2 className='text-black font-bold'>Registered authenticators</h2>
       <ul className='list-disc list-inside mt-4'>
-        {authenticators.map((e) => <Authenticator key={authenticatorId(e)} authenticator={e} />)}
+        {authenticators?.map((e) => <Authenticator key={authenticatorId(e)} authenticator={e} />)}
       </ul>
     </div>
     <div className='flex flex-row justify-between'>
