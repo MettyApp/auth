@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { addAuthenticator, getUser, Authenticator, enrollFIDO2Authenticator, removeAuthenticator, UserProfile } from '../actions';
+import { addAuthenticator, getUser, Authenticator, enrollFIDO2Authenticator, removeAuthenticator, UserProfile, logout } from '../actions';
 import { startRegistration } from '@simplewebauthn/browser';
 import { useRouter } from 'next/navigation';
 import { XMarkIcon } from '@heroicons/react/24/solid'
@@ -15,7 +15,7 @@ function Authenticator({ authenticator }: { authenticator: Authenticator }) {
     if (accessToken == null) {
       throw new Error('access token missing');
     }
-    await removeAuthenticator(accessToken, id);
+    await removeAuthenticator(id);
   }
 
   return <li className='group text-black flex flex-row justify-between hover:bg-gray-100 rounded-full pr-4 py-2'>
@@ -30,38 +30,30 @@ export default function Profile() {
   const router = useRouter();
 
   const doLogout = async () => {
+    localStorage.removeItem('idToken');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    await logout();
     router.replace('/');
   }
   const enrollDevice = async () => {
     setWorking(true);
-    const idToken = localStorage.getItem('idToken');
-    if (idToken == null) {
-      throw new Error('idToken missing');
-    }
     try {
-      const opts = JSON.parse((await enrollFIDO2Authenticator(idToken)).response)
+      const opts = JSON.parse((await enrollFIDO2Authenticator()).response)
       const attResp = JSON.stringify(await startRegistration(opts));
-      await addAuthenticator(idToken, attResp);
+      await addAuthenticator(attResp);
     } finally { setWorking(false); }
   };
 
   useEffect(() => {
-    const idToken = localStorage.getItem('idToken');
-    if (idToken != "") {
-      (async () => {
-        try {
-          const user = await getUser(idToken!);
-          setUserProfile(user);
-        } catch {
-          router.replace('/');
-        }
-      })();
-    } else {
-      localStorage.removeItem('accessToken');
-      router.replace('/');
-    }
+    (async () => {
+      try {
+        const user = await getUser();
+        setUserProfile(user);
+      } catch {
+        router.replace('/');
+      }
+    })();
   }, []);
 
   const authenticators = userProfile?.authenticators;

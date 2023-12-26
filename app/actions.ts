@@ -2,10 +2,12 @@
 
 import { AuthenticationResultType, CognitoIdentityProviderClient, ConfirmSignUpCommand, InitiateAuthCommand, ResendConfirmationCodeCommand, RespondToAuthChallengeCommand, SignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { generateRegistrationOptions } from '@simplewebauthn/server';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { uid } from 'uid-promise';
 import { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/typescript-types';
+import { IronSession, getIronSession } from 'iron-session';
+import { deleteSession, getSession, saveSessionFromAuth } from '@/session';
 
 const client = new CognitoIdentityProviderClient({ region: "eu-west-1" });
 const rpEndpoint = process.env['RP_ENDPOINT_URL']!
@@ -14,6 +16,7 @@ interface WrappedResponse<T> {
   error?: any
   response?: T
 }
+
 
 export async function register(username: string): Promise<any> {
   const _h = headers();
@@ -31,10 +34,11 @@ export async function register(username: string): Promise<any> {
   await kv.set(username, options.challenge, { ex: 100 });
   return options;
 };
-export async function enrollFIDO2Authenticator(idToken: string): Promise<WrappedResponse<any>> {
+export async function enrollFIDO2Authenticator(): Promise<WrappedResponse<any>> {
   const _h = headers();
   try {
-    const resp = await fetch(`${rpEndpoint}/authenticator/`, { method: 'POST', headers: { 'Authorization': `Bearer ${idToken}` } });
+    const session = await getSession();
+    const resp = await fetch(`${rpEndpoint}/authenticator/`, { method: 'POST', headers: { 'Authorization': `Bearer ${session.idToken!}` } });
     const body = await resp.json();
     console.log(resp.status, " ", body);
     return { response: JSON.stringify(body) };
@@ -42,10 +46,11 @@ export async function enrollFIDO2Authenticator(idToken: string): Promise<Wrapped
     return { error }
   }
 };
-export async function addAuthenticator(idToken: string, challengeAnswer: string): Promise<WrappedResponse<void>> {
+export async function addAuthenticator(challengeAnswer: string): Promise<WrappedResponse<void>> {
   const _h = headers();
   try {
-    const resp = await fetch(`${rpEndpoint}/authenticator/confirm`, { method: 'PUT', headers: { 'Authorization': `Bearer ${idToken}` }, body: challengeAnswer });
+    const session = await getSession();
+    const resp = await fetch(`${rpEndpoint}/authenticator/confirm`, { method: 'PUT', headers: { 'Authorization': `Bearer ${session.idToken!}` }, body: challengeAnswer });
     const body = await resp.json();
     console.log(resp.status, " ", body);
     if (resp.status != 200) {
@@ -59,10 +64,10 @@ export async function addAuthenticator(idToken: string, challengeAnswer: string)
   return {};
 
 }
-export async function removeAuthenticator(accessToken: string, id: string): Promise<WrappedResponse<void>> {
+export async function removeAuthenticator(id: string): Promise<WrappedResponse<void>> {
   const _h = headers();
   try {
-    const user = await getUser(accessToken);
+    const user = await getUser();
     const host = _h.get('Host')!;
 
     throw Error("not implem");
@@ -141,6 +146,9 @@ export async function authWithRefreshToken(username: string, refreshToken: strin
 
 
 
+export async function logout(): Promise<any> {
+  await deleteSession();
+}
 export async function auth(username: string): Promise<any> {
   const _h = headers();
   const initiateAuthCommand = new InitiateAuthCommand({
@@ -242,6 +250,7 @@ export async function answerMagicLinkChallenge(username: string, session: string
   });
   try {
     const resp = await client.send(respondToAuthChallengeCommand);
+    await saveSessionFromAuth(username, resp.AuthenticationResult);
     return { response: resp.AuthenticationResult! }
   } catch (err: any) {
     return { error: err.name }
@@ -274,6 +283,7 @@ export async function answerFIDOChallenge(username: string, attResp: string, ses
     }
   });
   const resp = await client.send(respondToAuthChallengeCommand);
+  await saveSessionFromAuth(username, resp.AuthenticationResult);
   return resp.AuthenticationResult!
 }
 
@@ -296,10 +306,11 @@ export interface UserProfile {
   authenticators: Array<Authenticator>
 }
 
-export async function getUser(idToken: string): Promise<UserProfile> {
+export async function getUser(): Promise<UserProfile> {
   const _h = headers();
-  const profile = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
-  const resp = await fetch(`${rpEndpoint}/authenticator/`, { method: 'GET', headers: { 'Authorization': `Bearer ${idToken}` } });
+  const session = await getSession();
+  const profile = JSON.parse(Buffer.from(session!.idToken!.split('.')[1], 'base64').toString());
+  const resp = await fetch(`${rpEndpoint}/authenticator/`, { method: 'GET', headers: { 'Authorization': `Bearer ${session!.idToken!}` } });
   return {
     email: profile.email,
     ...(await resp.json()),
