@@ -154,7 +154,7 @@ export default function Home() {
     <main>
       <div className=' mb-8'>
         <h1 className='text-2xl text-black font-extrabold'>Access your account</h1>
-        <p className='text-sm'>New user ? <Link className='underline' href={'/signup'}>Create an account</Link></p>
+        <p className='text-sm'>New user ? <Link className='underline' href={'/register'}>Create an account</Link></p>
       </div>
       <div className='my-4 flex flex-col'>
         <button type='button' disabled={formDisabled} onClick={(_) => doAuth()} className="flex-1 flex bg-black hover:enabled:bg-black-700 text-white font-bold py-2 px-4 rounded focus:enabled:outline-none disabled:opacity-30 hover:enabled:bg-opacity-80">
@@ -163,7 +163,7 @@ export default function Home() {
         </button>
         <p className="my-4 text-center before:content-[''] before:border-b-2 before:mb-2 before:mr-4 before:flex-1 flex flex-row flex-1 after:border-b-2 after:flex-1 after:mb-2 after:ml-4">or</p>
 
-        <button type='button' onClick={(_) => router.push('/emailSignin')} className="flex-1 flex py-2 px-4 font-bold text-sm text-black rounded hover:enabled:bg-opacity-10 border-2 border-gray-600
+        <button type='button' onClick={(_) => router.push('/email')} className="flex-1 flex py-2 px-4 font-bold text-sm text-black rounded hover:enabled:bg-opacity-10 border-2 border-gray-600
         hover:enabled:bg-gray-500 disabled:opacity-30">
           <EnvelopeIcon height={24} width={24} />
           <span className='flex-1'>Login with email</span>

@@ -2,11 +2,10 @@
 
 import { AuthenticationResultType, CognitoIdentityProviderClient, ConfirmSignUpCommand, InitiateAuthCommand, ResendConfirmationCodeCommand, RespondToAuthChallengeCommand, SignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { generateRegistrationOptions } from '@simplewebauthn/server';
-import { cookies, headers } from 'next/headers';
+import { headers } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { uid } from 'uid-promise';
 import { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/typescript-types';
-import { IronSession, getIronSession } from 'iron-session';
 import { deleteSession, getSession, saveSessionFromAuth } from '@/session';
 
 const client = new CognitoIdentityProviderClient({ region: "eu-west-1" });

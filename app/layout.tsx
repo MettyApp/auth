@@ -23,7 +23,7 @@ export default function RootLayout({
             <div className='flex justify-center p-8 bg-white rounded-3xl lg:flex-1 flex-col lg:rounded-none lg:flex lg:justify-center px-16 lg:w-2/6'>
               <div className='flex justify-center items-center mb-8'>
                 <div className='bg-white rounded-full flex justify-center items-center p-4 pt-6'>
-                  <div className='relative h-14 w-16 '>
+                  <div className='relative h-12 w-12 '>
                     <Image alt="" src={"/logo.svg"} fill/>
                   </div>
                 </div>

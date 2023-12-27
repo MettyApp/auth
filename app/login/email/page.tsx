@@ -4,7 +4,7 @@ import { authWithMagicLink } from '@/app/actions';
 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link';
-import { validateEmail } from '../validation';
+import { validateEmail } from '@/app/validation';
 
 export default function Home() {
   const [username, setUsername] = useState("");
@@ -50,7 +50,7 @@ export default function Home() {
           </div>
         </div>
         <div className="flex items-center justify-between my-4">
-          <button disabled={actionsDisabled} type='button' onClick={(_) => router.push('/signup')} className="bg-black hover:enabled:bg-black-700 text-white font-bold py-2 px-4 rounded focus:enabled:outline-none disabled:opacity-30 hover:enabled:bg-opacity-80">
+          <button disabled={actionsDisabled} type='button' onClick={(_) => doAuth(username)} className="bg-black hover:enabled:bg-black-700 text-white font-bold py-2 px-4 rounded focus:enabled:outline-none disabled:opacity-30 hover:enabled:bg-opacity-80">
             Login
           </button>
           <button type='button' disabled={formDisabled} onClick={(_) => router.back()} className="font-bold text-sm text-black rounded disabled:opacity-30">

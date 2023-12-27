@@ -16,11 +16,12 @@ interface SessionMetadata {
 }
 
 export async function deleteSession() {
-  const sessionId = await getSessionId(false);
-  if (sessionId === null || sessionId === undefined) {
+  const sessionMetadatas = await getSessionId(false);
+  if (sessionMetadatas === null || sessionMetadatas === undefined) {
     return;
   }
-  await kv.del(sessionId)
+  await kv.del(sessionMetadatas.id)
+  sessionMetadatas.destroy();
 }
 export async function saveSessionFromAuth(username: string, resp?: AuthenticationResultType) {
   if (resp === null || resp === undefined) { return }
@@ -33,31 +34,25 @@ export async function saveSessionFromAuth(username: string, resp?: Authenticatio
     username: username,
   };
   const payload = await sealData(session, { password: `${sessionMetada}${process.env.IRON_PASSWORD}` })
-  await kv.set(sessionMetada, payload, { ex: 86000 });
+  await kv.set(sessionMetada.id, payload, { ex: 86000 });
 }
 
 async function getSessionId(init: boolean = false) {
-  try {
-    const session = await getIronSession<SessionMetadata>(cookies(), { password: process.env.IRON_PASSWORD!, cookieName: process.env.IRON_COOKIE! });
-    if (init && (session.id === undefined || session.id === null)) {
-      session.id = crypto.randomUUID();
-      await session.save();
-    }
-    return session.id;
-  } catch (err) {
-    if (init) {
-      cookies().delete(process.env.IRON_COOKIE!);
-      return getSessionId();
-    }
-    throw err;
+  const session = await getIronSession<SessionMetadata>(cookies(), { password: process.env.IRON_PASSWORD!, cookieName: process.env.IRON_COOKIE! });
+  if (init && (session.id === undefined || session.id === null)) {
+    session.id = crypto.randomUUID();
+    await session.save();
   }
+  return session;
+
 }
 
 export async function getSession(init: boolean = false): Promise<Session> {
-  const sessionId = await getSessionId(init);
-  if (sessionId === null || sessionId === undefined) {
-    return {};
+  const sessionMetadata = await getSessionId(init);
+  if (sessionMetadata.id === null || sessionMetadata.id === undefined) {
+    return { isLoggedIn: false };
+  } else {
+    const data = await kv.get<string>(sessionMetadata.id) ?? '';
+    return await unsealData(data, { password: `${sessionMetadata}${process.env.IRON_PASSWORD}` });
   }
-  const data = await kv.get<string>(sessionId) ?? '';
-  return await unsealData(data, { password: `${sessionId}${process.env.IRON_PASSWORD}` });
 }

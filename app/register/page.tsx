@@ -53,7 +53,7 @@ export default function Home() {
     <main>
       <div className=' mb-8'>
         <h1 className='text-2xl text-black font-extrabold'>Create your account</h1>
-        <p className='text-sm'>Already an user ? <Link className='underline' href={'/'}>Login to your account</Link></p>
+        <p className='text-sm'>Already an user ? <Link className='underline' href={'/login'}>Login to your account</Link></p>
       </div>
       <form onSubmit={(e) => {
         e.preventDefault();
