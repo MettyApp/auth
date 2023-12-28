@@ -3,55 +3,17 @@ import { useEffect, useState } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { useSearchParams } from 'next/navigation'
 
-import { answerFIDOChallenge, confirmSignup, authWithMagicLink, answerMagicLinkChallenge, authWithRefreshToken, decodeMagicLinkHash, authUsernameless } from '@/app/actions';
-import { jwtDecode } from 'jwt-decode';
+import { answerFIDOChallenge, confirmSignup, authWithMagicLink, answerMagicLinkChallenge, decodeMagicLinkHash, authUsernameless } from '@/app/actions';
 
 import { useRouter } from 'next/navigation'
-import { AuthenticationResultType } from '@aws-sdk/client-cognito-identity-provider';
 
 import Link from 'next/link';
 import { EnvelopeIcon, FingerPrintIcon } from '@heroicons/react/24/outline';
 
 export default function Home() {
-  const [accessToken, setAccessToken] = useState("");
   const [working, setWorking] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter()
-
-  const saveTokens = (res: AuthenticationResultType) => {
-    localStorage.setItem('accessToken', res.AccessToken!);
-    localStorage.setItem('refreshToken', res.RefreshToken!);
-    localStorage.setItem('idToken', res.IdToken!);
-  }
-
-  const loadTokens = async (): Promise<{ accessToken: string | null, refreshToken: string | null }> => {
-    const now = Math.round((new Date()).getTime() / 1000);
-    const accessToken = localStorage.getItem('accessToken');
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (refreshToken != null) {
-      if (accessToken != null) {
-        const decoded = jwtDecode(accessToken);
-        if ((decoded.exp ?? 0) <= now || ((decoded.iat ?? 0) >= now)) {
-          // token expired or malformed
-          console.log('access token expired ');
-          try {
-            const resp = (await authWithRefreshToken(decoded.sub!, refreshToken)).response!;
-            console.log('refreshed access token');
-            saveTokens(resp);
-            setAccessToken(resp.AccessToken!);
-          } catch {
-            console.log('refresh token expired');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('accessToken');
-          }
-        } else {
-          console.log('access token still valid');
-          setAccessToken(accessToken);
-        }
-      }
-    }
-    return { accessToken, refreshToken };
-  };
 
 
   const doAuth = async () => {
@@ -65,7 +27,6 @@ export default function Home() {
         console.log('using user handle ', authResp.response.userHandle);
         const attResp = JSON.stringify(authResp);
         const resp = await answerFIDOChallenge(authResp.response.userHandle!, attResp);
-        saveTokens(resp);
         maybeRedirect(resp.AccessToken!, resp.RefreshToken!);
       }
     }
@@ -100,56 +61,50 @@ export default function Home() {
 
   useEffect(() => {
     (async () => {
-      const { accessToken, refreshToken } = await loadTokens();
-      if (accessToken == null || accessToken.length === 0) {
-        var hash = window.location.hash.slice(1);
-        if (hash !== undefined && hash.length > 0) {
-          if (hash.includes('-')) {
-            var code;
-            [hash, code] = hash.split('=');
-          }
-          setWorking(true);
-          var session = localStorage.getItem('session');
-          const redirect = localStorage.getItem('redirect');
-          const data = JSON.parse(await decodeMagicLinkHash(hash));
-          try {
-            if (code !== null) {
-              await confirmSignup(data.userName, code!);
-              console.log('account signed up');
-            }
-            if (session === null) {
-              const { response, error } = await authWithMagicLink(data.userName, hash);
-              if (error) {
-                console.error(error);
-                return;
-              } else {
-                saveTokens(response!.auth!);
-                maybeRedirect(response!.auth.AccessToken!, response!.auth.RefreshToken!, redirect);
-              }
-            } else {
-              const { response, error } = await answerMagicLinkChallenge(data.userName, session!, hash);
-              if (error) {
-                console.error(error)
-              } else {
-                localStorage.removeItem('session');
-                localStorage.removeItem('redirect');
-                saveTokens(response!);
-                maybeRedirect(response!.AccessToken!, response!.RefreshToken!, redirect);
-              }
-            }
-          } finally {
-            setWorking(false);
-          }
+
+      var hash = window.location.hash.slice(1);
+      if (hash !== undefined && hash.length > 0) {
+        if (hash.includes('-')) {
+          var code;
+          [hash, code] = hash.split('=');
         }
-      } else {
-        maybeRedirect(accessToken!, refreshToken!);
-        setWorking(false);
+        setWorking(true);
+        var session = localStorage.getItem('session');
+        const redirect = localStorage.getItem('redirect');
+        const data = JSON.parse(await decodeMagicLinkHash(hash));
+        try {
+          if (code !== null) {
+            await confirmSignup(data.userName, code!);
+            console.log('account signed up');
+          }
+          if (session === null) {
+            const { response, error } = await authWithMagicLink(data.userName, hash);
+            if (error) {
+              console.error(error);
+              return;
+            } else {
+              maybeRedirect(response!.auth.AccessToken!, response!.auth.RefreshToken!, redirect);
+            }
+          } else {
+            const { response, error } = await answerMagicLinkChallenge(data.userName, session!, hash);
+            if (error) {
+              console.error(error)
+            } else {
+              localStorage.removeItem('session');
+              localStorage.removeItem('redirect');
+              maybeRedirect(response!.AccessToken!, response!.RefreshToken!, redirect);
+            }
+          }
+        } finally {
+          setWorking(false);
+        }
       }
+
     })();
 
   }, []);
 
-  const formDisabled = (accessToken.length > 0 || working);
+  const formDisabled = (working);
   return (
     <main>
       <div className=' mb-8'>

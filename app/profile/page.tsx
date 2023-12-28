@@ -11,10 +11,6 @@ const authenticatorId = (authenticator: Authenticator) => authenticator.credenti
 function Authenticator({ authenticator }: { authenticator: Authenticator }) {
   const deviceId = authenticatorId(authenticator);
   const doRemoveAuthenticator = async (id: string) => {
-    const accessToken = localStorage.getItem('accessToken');
-    if (accessToken == null) {
-      throw new Error('access token missing');
-    }
     await removeAuthenticator(id);
   }
 
@@ -30,9 +26,6 @@ export default function Profile() {
   const router = useRouter();
 
   const doLogout = async () => {
-    localStorage.removeItem('idToken');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
     await logout();
     router.replace('/');
   }

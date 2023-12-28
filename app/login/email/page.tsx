@@ -59,7 +59,7 @@ export default function Home() {
         </div>
         {done && <p className='text-xs'> An email containing a login link has been sent to you.<br />
           Please check your inbox and follow the instructions to login to your account.<br />
-          If you don&lsquot receive the email within a few minutes, please check your spam folder.</p>}
+          If you don&apos; receive the email within a few minutes, please check your spam folder.</p>}
       </form>
     </main>
   )
