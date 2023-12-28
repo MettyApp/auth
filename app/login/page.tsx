@@ -163,7 +163,7 @@ export default function Home() {
         </button>
         <p className="my-4 text-center before:content-[''] before:border-b-2 before:mb-2 before:mr-4 before:flex-1 flex flex-row flex-1 after:border-b-2 after:flex-1 after:mb-2 after:ml-4">or</p>
 
-        <button type='button' onClick={(_) => router.push('/email')} className="flex-1 flex py-2 px-4 font-bold text-sm text-black rounded hover:enabled:bg-opacity-10 border-2 border-gray-600
+        <button type='button' onClick={(_) => router.push('/login/email')} className="flex-1 flex py-2 px-4 font-bold text-sm text-black rounded hover:enabled:bg-opacity-10 border-2 border-gray-600
         hover:enabled:bg-gray-500 disabled:opacity-30">
           <EnvelopeIcon height={24} width={24} />
           <span className='flex-1'>Login with email</span>
